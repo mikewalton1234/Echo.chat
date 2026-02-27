@@ -1,0 +1,96 @@
+{
+  "version": 2,
+  "categories": [
+    {
+      "name": "General",
+      "subcategories": [
+        {
+          "name": "Main",
+          "rooms": [
+            "Lobby",
+            "Random",
+            "Support",
+            "Introductions"
+          ]
+        },
+        {
+          "name": "Social",
+          "rooms": [
+            "Friends Hangout",
+            "Music Chat",
+            "Movies & TV",
+            "Books"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tech",
+      "subcategories": [
+        {
+          "name": "Computers",
+          "rooms": [
+            "Linux",
+            "Windows",
+            "Hardware",
+            "Networking"
+          ]
+        },
+        {
+          "name": "Programming",
+          "rooms": [
+            "Python",
+            "JavaScript",
+            "Web Dev",
+            "Databases"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Gaming",
+      "subcategories": [
+        {
+          "name": "PC",
+          "rooms": [
+            "Steam",
+            "MMO",
+            "Indie Games",
+            "Co-op"
+          ]
+        },
+        {
+          "name": "Console",
+          "rooms": [
+            "PlayStation",
+            "Xbox",
+            "Nintendo"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Regional",
+      "subcategories": [
+        {
+          "name": "USA",
+          "rooms": [
+            "Northeast",
+            "Midwest",
+            "South",
+            "West"
+          ]
+        },
+        {
+          "name": "World",
+          "rooms": [
+            "Europe",
+            "Asia",
+            "Americas",
+            "Oceania"
+          ]
+        }
+      ]
+    }
+  ]
+}

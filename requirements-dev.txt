@@ -1,0 +1,4 @@
+# Dev / tooling dependencies (optional)
+# Install with: pip install -r requirements-dev.txt
+python-socketio[client]>=5.11
+websocket-client>=1.8
