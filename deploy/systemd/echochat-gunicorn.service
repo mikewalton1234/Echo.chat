@@ -1,0 +1,51 @@
+# EchoChat systemd unit (Gunicorn + Eventlet + multi-worker)
+#
+# Install:
+#   sudo cp deploy/systemd/echochat-gunicorn.service /etc/systemd/system/echochat-gunicorn.service
+#   sudo mkdir -p /etc/echochat
+#   sudo cp deploy/systemd/echochat.env.example /etc/echochat/echochat.env
+#   sudo chmod 600 /etc/echochat/echochat.env
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now echochat-gunicorn
+#
+# Notes:
+# - Adjust WorkingDirectory and ExecStart paths to your install.
+# - Requires Redis if you run more than 1 worker (Socket.IO message queue).
+
+[Unit]
+Description=EchoChat (Gunicorn + Eventlet)
+After=network-online.target redis.service
+Wants=network-online.target redis.service
+
+[Service]
+Type=simple
+
+# ---- Adjust these paths ----
+WorkingDirectory=/opt/echochat/Echo-Chat-main
+ExecStart=/opt/echochat/.venv/bin/gunicorn -c /opt/echochat/Echo-Chat-main/gunicorn_conf.py wsgi:app
+
+# Load env vars / secrets
+EnvironmentFile=/etc/echochat/echochat.env
+
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=20
+
+User=echochat
+Group=echochat
+
+# Hardening (moderate; safe defaults)
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=full
+RestrictSUIDSGID=true
+LockPersonality=true
+
+ReadWritePaths=/opt/echochat/Echo-Chat-main/logs
+ReadWritePaths=/opt/echochat/Echo-Chat-main/server_config.json
+
+[Install]
+WantedBy=multi-user.target

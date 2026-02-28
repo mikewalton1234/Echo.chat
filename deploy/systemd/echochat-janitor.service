@@ -1,0 +1,39 @@
+# EchoChat janitor service
+#
+# Run cleanup as a single instance when EchoChat is served by Gunicorn with
+# multiple workers.
+#
+# Install:
+#   sudo cp deploy/systemd/echochat-janitor.service /etc/systemd/system/echochat-janitor.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now echochat-janitor
+
+[Unit]
+Description=EchoChat janitor (cleanup loop)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/echochat/Echo-Chat-main
+ExecStart=/opt/echochat/.venv/bin/python janitor_runner.py
+EnvironmentFile=/etc/echochat/echochat.env
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=2
+
+User=echochat
+Group=echochat
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=full
+RestrictSUIDSGID=true
+LockPersonality=true
+
+ReadWritePaths=/opt/echochat/Echo-Chat-main/logs
+
+[Install]
+WantedBy=multi-user.target

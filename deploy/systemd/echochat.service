@@ -1,0 +1,57 @@
+# EchoChat systemd unit (single instance)
+#
+# Install:
+#   sudo cp deploy/systemd/echochat.service /etc/systemd/system/echochat.service
+#   sudo mkdir -p /etc/echochat
+#   sudo cp deploy/systemd/echochat.env.example /etc/echochat/echochat.env
+#   sudo chmod 600 /etc/echochat/echochat.env
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now echochat
+#
+# Notes:
+# - Adjust WorkingDirectory and ExecStart to your install path.
+# - If you're using local Redis for Socket.IO multi-worker broadcast, keep
+#   Wants/After redis.service.
+
+[Unit]
+Description=EchoChat server
+After=network-online.target redis.service
+Wants=network-online.target redis.service
+
+[Service]
+Type=simple
+
+# ---- Adjust these paths ----
+WorkingDirectory=/opt/echochat/Echo-Chat-main
+ExecStart=/opt/echochat/.venv/bin/python main.py
+
+# Load env vars / secrets (recommended)
+EnvironmentFile=/etc/echochat/echochat.env
+
+# Basic runtime hygiene
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=20
+
+# Run as dedicated user
+User=echochat
+Group=echochat
+
+# Hardening (moderate; safe defaults)
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=full
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# Allow writes to logs (and optional config persistence)
+ReadWritePaths=/opt/echochat/Echo-Chat-main/logs
+ReadWritePaths=/opt/echochat/Echo-Chat-main/server_config.json
+
+# If you store uploads/temp elsewhere, add them as ReadWritePaths.
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,108 @@
+<!-- login.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Echo Messenger - Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/chat.css') }}">
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #eef0f5;
+        }
+        form {
+            background: #fff;
+            padding: 2em;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            gap: 1em;
+            width: 300px;
+        }
+        input, button {
+            padding: 10px;
+            font-size: 1em;
+        }
+
+        .notice {
+            padding: 10px;
+            border-radius: 8px;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            color: #5b4a00;
+            font-size: 0.95em;
+        }
+        .notice strong { font-weight: 600; }
+    </style>
+</head>
+<body>
+    <form method="POST">
+        <h2>Login</h2>
+        <div id="loginMsg" class="notice" style="display:none;"></div>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="text" name="username" placeholder="Username" required>
+        <input type="password" name="password" placeholder="Password" required>
+        <label style="display:flex;align-items:center;gap:8px;font-size:0.95em;user-select:none;">
+            <input type="checkbox" id="autoUnlockDm" checked>
+            Unlock private messages automatically (this tab)
+        </label>
+        <button type="submit">Login</button>
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+        <p><a href="{{ url_for('forgot_password') }}">Forgot password?</a></p>
+        <p>Don't have an account? <a href="{{ url_for('register') }}">Register here</a></p>
+    </form>
+
+    <script>
+      // Store the login password in sessionStorage so private messages can unlock
+      // automatically without a second prompt (per-tab only; cleared when the tab closes).
+      (() => {
+        const form = document.querySelector("form");
+        if (!form) return;
+        form.addEventListener("submit", () => {
+          try {
+            const pwdEl = form.querySelector('input[name="password"]');
+            const cb = document.getElementById("autoUnlockDm");
+            if (cb && cb.checked && pwdEl && pwdEl.value) {
+              // Match server-side login normalization (server strips whitespace).
+              sessionStorage.setItem("echochat_dm_pwd", String(pwdEl.value).trim());
+              sessionStorage.setItem("echochat_dm_pwd_set_at", String(Date.now()));
+            } else {
+              sessionStorage.removeItem("echochat_dm_pwd");
+              sessionStorage.removeItem("echochat_dm_pwd_set_at");
+            }
+          } catch (e) {}
+        });
+      })();
+    
+      // Show forced-logout / ban / kick message (set by chat.js in sessionStorage or via URL params).
+      (() => {
+        try {
+          const el = document.getElementById("loginMsg");
+          if (!el) return;
+
+          const params = new URLSearchParams(window.location.search || "");
+          const qp = (params.get("msg") || params.get("message") || params.get("reason") || "").trim();
+
+          const ss = (sessionStorage.getItem("echochat_logout_reason") || "").trim();
+          // Prefer explicit message, then sessionStorage.
+          const msg = qp || ss;
+
+          if (msg) {
+            el.style.display = "block";
+            el.innerHTML = `<strong>Signed out:</strong> ${msg.replace(/</g, "&lt;").replace(/>/g, "&gt;")}`;
+            // One-shot: keep DM auto-unlock password (same tab), but clear the logout reason.
+            try { sessionStorage.removeItem("echochat_logout_reason"); } catch (e) {}
+          }
+        } catch (e) {}
+      })();
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,243 @@
+/* EchoChat — Auth pages (Login / Register / Recovery)
+   Modern card UI that still respects the global theme variables from chat.css.
+*/
+
+body.auth {
+  overflow: auto;
+}
+
+.authShell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 18px;
+  position: relative;
+}
+
+.authShell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(700px 420px at 25% 18%, rgba(var(--accent-rgb),0.18), transparent 60%),
+    radial-gradient(680px 420px at 78% 28%, rgba(var(--accent2-rgb),0.16), transparent 60%),
+    radial-gradient(900px 520px at 50% 110%, rgba(0,0,0,0.18), transparent 60%);
+  filter: saturate(1.15);
+}
+
+.authCard {
+  width: min(440px, 100%);
+  background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.10));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow:
+    0 18px 60px rgba(0,0,0,0.35),
+    0 0 0 1px rgba(var(--accent-rgb),0.10) inset;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  position: relative;
+  z-index: 1;
+}
+
+.theme-light .authCard {
+  background: linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.76));
+  box-shadow:
+    0 18px 50px rgba(0,0,0,0.18),
+    0 0 0 1px rgba(var(--accent-rgb),0.12) inset;
+}
+
+.authCardInner {
+  padding: 22px 22px 18px;
+}
+
+.authBrand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.authLogo {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb),0.95), rgba(var(--accent2-rgb),0.92));
+  box-shadow:
+    0 10px 24px rgba(var(--accent-rgb),0.22),
+    0 0 0 1px rgba(255,255,255,0.18) inset;
+  position: relative;
+}
+
+.authLogo::after {
+  content: "";
+  position: absolute;
+  inset: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.18);
+  transform: rotate(10deg);
+}
+
+.authTitle {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.authTitle h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  letter-spacing: 0.2px;
+}
+
+.authTitle p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.authForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.field input {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--borderSoft);
+  background: var(--inputBg);
+  color: var(--text);
+  outline: none;
+}
+
+.theme-light .field input {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.75) inset;
+}
+
+.field input::placeholder {
+  color: var(--placeholder);
+}
+
+.field input:focus {
+  border-color: var(--accentStroke);
+  box-shadow: 0 0 0 4px var(--accentFillSoft);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  user-select: none;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+}
+
+.authBtn {
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.authBtnPrimary {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb),0.95), rgba(var(--accent2-rgb),0.92));
+  box-shadow:
+    0 12px 26px rgba(var(--accent-rgb),0.22),
+    0 0 0 1px rgba(0,0,0,0.18) inset;
+}
+
+.authBtnPrimary:hover {
+  filter: brightness(1.06) saturate(1.06);
+}
+
+.authBtnPrimary:active {
+  transform: translateY(1px);
+}
+
+.authLinks {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.95rem;
+}
+
+.authLinks a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.authLinks a:hover {
+  text-decoration: underline;
+}
+
+.authAlert {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--borderSoft);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.authAlert.warn {
+  border-color: rgba(255,204,102,0.35);
+  background: rgba(255,204,102,0.10);
+}
+
+.authAlert.error {
+  border-color: rgba(255,77,79,0.40);
+  background: rgba(255,77,79,0.10);
+}
+
+.authFooter {
+  padding: 12px 22px 18px;
+  border-top: 1px solid var(--borderFaint);
+  color: var(--muted);
+  font-size: 0.86rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.authFooter .pill {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--borderSoft);
+  background: var(--surface);
+}
+
+@media (max-width: 520px) {
+  .authCardInner { padding: 18px 16px 14px; }
+  .authFooter { padding: 10px 16px 14px; flex-direction: column; align-items: flex-start; }
+}

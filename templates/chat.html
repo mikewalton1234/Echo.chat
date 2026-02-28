@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Echo Messenger</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" href="/static/css/chat.css?v={{ app_version }}" />
+  <script src="https://cdn.socket.io/4.5.0/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/livekit-client@2.5.9/dist/livekit-client.umd.min.js"></script>
+  <!-- Emoji picker web component (no hardcoded emoji list) -->
+  <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.29.0/index.js"></script>
+
+  <script>
+    // Injected by Flask
+    window.USERNAME = {{ username|tojson }};
+    window.ENCRYPTED_PRIV_KEY = {{ encrypted_private_key|default("", true)|tojson }};
+    window.IS_ADMIN = {{ is_admin|default(false)|tojson }};
+    window.USER_PERMS = {{ user_perms|default([], true)|tojson }};
+    window.INIT_ROOMS = {{ rooms|default([], true)|tojson }};
+    // Non-secret client config (keeps JS limits aligned with server settings)
+    window.ECHOCHAT_CFG = {{ client_cfg|default({}, true)|tojson }};
+  </script>
+  <script src="/static/js/chat.js?v={{ app_version }}" defer></script>
+</head>
+
+<body>
+  <div id="appRoot" class="theme-dark">
+    <div class="autofillTrap" aria-hidden="true" style="position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden;pointer-events:none;opacity:0;">
+      <input type="text" tabindex="-1" autocomplete="username" />
+      <input type="password" tabindex="-1" autocomplete="current-password" />
+    </div>
+    <!-- Left side: your website/content area -->
+    <main id="siteArea">
+      <header class="siteHeader">
+        <div class="siteBrand">EchoChat</div>
+        <div class="siteHint">Pre-alpha · Web GUI (Yahoo-style) · v{{ app_version }}</div>
+      </header>
+
+      <!-- Left side selection screen (Yahoo-style room browser) -->
+      <section id="sitePlaceholder" class="sitePlaceholder roomBrowser">
+        <div class="rbHead">
+          <div class="rbTitle">Chat Rooms</div>
+          <div class="rbHeadActions">
+            <button id="btnOpenCreateRoom" class="miniBtn">➕ Create Room</button>
+          </div>
+        </div>
+
+        <div class="rbGrid">
+          <div class="rbCol rbCats">
+            <div class="rbColHead">Categories</div>
+            <div class="rbTools">
+              <input id="rbCatSearch" class="rbSearch" type="text" placeholder="Search categories…" autocomplete="new-password" name="ym_rb_cat_search" data-lpignore="true" data-1p-ignore="true" aria-autocomplete="none" autocapitalize="off" autocorrect="off" spellcheck="false" />
+            </div>
+            <ul id="rbCategoryTree" class="rbList"></ul>
+          </div>
+          <div class="rbCol rbOfficial">
+            <div class="rbColHead">Rooms</div>
+            <div class="rbTools">
+              <input id="rbRoomSearch" class="rbSearch" type="text" placeholder="Search rooms…" autocomplete="new-password" name="ym_rb_room_search" data-lpignore="true" data-1p-ignore="true" aria-autocomplete="none" autocapitalize="off" autocorrect="off" spellcheck="false" />
+              <select id="rbRoomSort" class="rbSelect" title="Sort rooms">
+                <option value="active">Active</option>
+                <option value="az">A–Z</option>
+              </select>
+              <label class="rbCheck" title="Hide rooms with 0 online">
+                <input type="checkbox" id="rbHideEmpty" />
+                Hide empty
+              </label>
+            </div>
+            <div id="rbSelectionLabel" class="rbMeta muted">Select a category/subcategory…</div>
+            <ul id="rbOfficialRooms" class="rbList"></ul>
+          </div>
+          <div class="rbCol rbCustom">
+            <div class="rbColHead">Custom Rooms</div>
+            <div class="rbTools">
+              <input id="rbCustomSearch" class="rbSearch" type="text" placeholder="Search custom rooms…" autocomplete="new-password" name="ym_rb_custom_search" data-lpignore="true" data-1p-ignore="true" aria-autocomplete="none" autocapitalize="off" autocorrect="off" spellcheck="false" />
+              <select id="rbCustomFilter" class="rbSelect" title="Filter custom rooms">
+                <option value="all">All</option>
+                <option value="public">Public</option>
+                <option value="private">Private</option>
+                <option value="mine">Mine</option>
+              </select>
+              <select id="rbCustomSort" class="rbSelect" title="Sort custom rooms">
+                <option value="active">Active</option>
+                <option value="az">A–Z</option>
+              </select>
+            </div>
+            <div class="rbMeta muted">Public rooms + private rooms you’re invited to.</div>
+            <ul id="rbCustomRooms" class="rbList"></ul>
+          </div>
+        </div>
+      </section>
+    
+    <section id="roomEmbed" class="roomEmbed hidden" aria-label="Room chat">
+      <div class="roomEmbedHead">
+        <div class="roomEmbedTitle" id="roomEmbedTitle">Room —</div>
+        <div class="roomEmbedActions">
+          <button id="btnRoomEmbedVoice" class="miniBtn" title="Voice chat (room)">🎤 Voice</button>
+          <button id="btnRoomEmbedLeave" class="miniBtn danger" title="Leave current room">Leave</button>
+        </div>
+      </div>
+
+      <div class="roomEmbedBody">
+        <!-- Left: chat log + composer -->
+        <div class="roomEmbedChatCol">
+          <div id="roomEmbedPolicy" class="ym-policy hidden" aria-live="polite" aria-atomic="true"></div>
+
+          <div id="roomEmbedLog" class="ym-log roomEmbedLog" aria-live="polite" aria-atomic="false"></div>
+
+          <!-- Room voice bar (shown when voice is active or incoming actions are needed) -->
+          <div id="roomEmbedVoiceBar" class="ym-voiceBar hidden" aria-live="polite" aria-atomic="true">
+            <div class="ym-voiceLeft">
+              <span class="ym-voiceBadge">VOICE</span>
+              <span id="roomEmbedVoiceStatus" class="ym-voiceStatus">Not connected</span>
+            </div>
+            <div class="ym-voiceBtns">
+              <button id="btnRoomEmbedVoiceJoin" class="miniBtn">Join</button>
+              <button id="btnRoomEmbedVoiceLeave" class="miniBtn danger">Leave</button>
+              <button id="btnRoomEmbedVoiceMute" class="miniBtn">Mute</button>
+              <button id="btnRoomEmbedVoiceCam" class="miniBtn">Cam</button>
+            </div>
+          </div>
+
+
+          <!-- LiveKit A/V panel (shown when LiveKit is enabled + connected) -->
+          <div id="roomEmbedAvPanel" class="ym-avPanel hidden" aria-live="polite" aria-atomic="false">
+            <div class="ym-avTop">
+              <div class="ym-avTitle">A/V Call</div>
+              <div class="ym-avMeta">
+                <span id="roomEmbedAvStatus" class="ym-avStatus">Not connected</span>
+                <button id="btnRoomEmbedAvHide" class="miniBtn">Hide</button>
+              </div>
+            </div>
+            <div id="roomEmbedAvGrid" class="ym-avGrid"></div>
+          </div>
+
+          <div class="ym-compose roomEmbedCompose">
+            <input id="roomEmbedInput" class="ym-input" type="text" placeholder="Type a message…" autocomplete="off" />
+            <button id="roomEmbedEmojiBtn" class="ym-toolBtn" title="Emoticons">😊</button>
+            <button id="roomEmbedTorrentBtn" class="ym-toolBtn" title="Share .torrent to this room">🧲</button>
+            <button id="roomEmbedGifBtn" class="ym-toolBtn" title="Search GIFs">GIF</button>
+            <input id="roomEmbedTorrentInput" type="file" accept=".torrent,application/x-bittorrent" style="display:none" />
+            <button id="roomEmbedSend" class="ym-send">Send</button>
+          </div>
+        </div>
+
+        <!-- Right: users in room (full height of room embed) -->
+        <aside class="roomEmbedUsers" aria-label="Users in current room">
+          <div class="roomEmbedUsersHead">
+            <span>Users</span>
+            <span id="roomUsersCount" class="roomUsersCount">0</span>
+          </div>
+          <ul id="userList" class="list small roomUsersList"></ul>
+        </aside>
+      </div>
+    </section>
+</main>
+
+    <!-- Right side: Yahoo-style dock -->
+    <aside id="ymDock" class="dock ymClassic">
+      <div class="dockTitlebar" id="dockTitlebar">
+        <div class="dockLogo">
+          <span class="ymBadge" aria-hidden="true">Y!</span>
+          <span class="dot" title="Online indicator"></span>
+          <span class="dockTitle">Echo Messenger</span>
+        </div>
+        <div class="dockTitleBtns">
+          <button id="btnHelpTour" class="tbBtn" title="Help / tour">?</button>
+          <button id="btnLogout" class="tbBtn tbBtnLogout" title="Log out">Log out</button>
+          <button id="btnSettings" class="tbBtn" title="Settings">⚙</button>
+        </div>
+      </div>
+
+      <div class="dockProfile">
+        <div class="meRow">
+          <div class="meAvatar" id="meAvatar" title="Profile"></div>
+          <div class="meInfo">
+            <div class="meName" id="meName"></div>
+            <select id="meStatus" class="meStatus" title="Status">
+              <option value="online">Online</option>
+              <option value="away">Away</option>
+              <option value="busy">Busy</option>
+              <option value="invisible">Invisible</option>
+              <option value="__custom__">Set custom status…</option>
+              <option value="__clear_custom__">Clear custom status</option>
+            </select>
+            <div id="meCustomDisplay" class="meCustomDisplay" title="Custom status"></div>
+          </div>
+        </div>
+
+
+        <div class="searchRow">
+          <input id="dockSearch" class="dockSearch" type="text" placeholder="Search friends / groups / requests…" autocomplete="new-password" name="ym_dock_search" data-lpignore="true" data-1p-ignore="true" aria-autocomplete="none" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        </div>
+
+        <div class="dockQuickStats" id="dockQuickStats" aria-label="Messenger overview">
+          <button class="dockStat active" data-jump-tab="friends" data-jump-target="friendsSectionMissed" title="Jump to missed messages">
+            <span class="dockStatLabel">Missed</span>
+            <span id="dockMissedCount" class="dockStatValue">0</span>
+          </button>
+          <button class="dockStat" data-jump-tab="friends" data-jump-target="friendsSectionList" title="Jump to friends list">
+            <span class="dockStatLabel">Friends</span>
+            <span id="dockFriendsCount" class="dockStatValue">0</span>
+          </button>
+          <button class="dockStat" data-jump-tab="friends" data-jump-target="friendsSectionPending" title="Jump to pending requests">
+            <span class="dockStatLabel">Requests</span>
+            <span id="dockPendingCount" class="dockStatValue">0</span>
+          </button>
+          <button class="dockStat" data-jump-tab="groups" data-jump-target="groupsSectionList" title="Jump to groups">
+            <span class="dockStatLabel">Groups</span>
+            <span id="dockGroupsCount" class="dockStatValue">0</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dockTabs" role="tablist">
+        <button class="tabBtn active" data-tab="friends" id="tabFriends">Friends</button>
+        <button class="tabBtn" data-tab="groups" id="tabGroups">Groups</button>
+      </div>
+
+      <div class="dockPanels">
+        <!-- Friends panel -->
+        <section class="dockPanel" id="panelFriends" role="tabpanel" data-panel-key="friends">
+          <section class="dockSection dockSectionPrimary" id="friendsSectionList" data-filter-list="friendsList" data-default-first="true">
+            <div class="panelSubRow">
+              <div class="panelSub">Friends</div>
+              <span id="friendsCount" class="sectionBadge">0</span>
+            </div>
+            <ul id="friendsList" class="list"></ul>
+          </section>
+
+          <section class="dockSection" id="friendsSectionMissed" data-filter-list="missedPmList">
+            <div class="panelSubRow">
+              <div class="panelSub">Missed messages</div>
+              <span id="missedPmCount" class="sectionBadge">0</span>
+            </div>
+            <ul id="missedPmList" class="list small"></ul>
+          </section>
+
+          <section class="dockSection" id="friendsSectionPending" data-filter-list="pendingRequestsList">
+            <div class="panelSubRow">
+              <div class="panelSub">Pending requests</div>
+              <span id="pendingRequestsCount" class="sectionBadge">0</span>
+            </div>
+            <ul id="pendingRequestsList" class="list small"></ul>
+          </section>
+
+          <section class="dockSection" id="friendsSectionBlocked" data-filter-list="blockedUsersList">
+            <div class="panelSubRow">
+              <div class="panelSub">Blocked</div>
+              <span id="blockedUsersCount" class="sectionBadge">0</span>
+            </div>
+            <ul id="blockedUsersList" class="list small"></ul>
+          </section>
+
+          <div id="friendsSearchEmpty" class="dockSearchEmpty hidden">No matching people or requests in this panel.</div>
+        </section>
+
+        <!-- Groups panel -->
+        <section class="dockPanel hidden" id="panelGroups" role="tabpanel" data-panel-key="groups">
+          <div class="dockSection dockSectionForm" id="groupsSectionCreate">
+            <div class="panelSubRow">
+              <div class="panelSub">Create group</div>
+              <span class="sectionHint">Start a shared room</span>
+            </div>
+            <div class="panelActions compact">
+              <input id="groupCreateName" class="miniInput" type="text" placeholder="New group name" />
+              <button id="btnCreateGroup" class="miniBtn">Create</button>
+            </div>
+          </div>
+
+          <div class="dockSection dockSectionForm" id="groupsSectionJoin">
+            <div class="panelSubRow">
+              <div class="panelSub">Join by invite</div>
+              <span class="sectionHint">Enter a group ID</span>
+            </div>
+            <div class="panelActions compact">
+              <input id="groupJoinId" class="miniInput" type="text" placeholder="Join (invite required) — enter group ID" />
+              <button id="btnJoinGroup" class="miniBtn">Join</button>
+            </div>
+          </div>
+
+          <section class="dockSection" id="groupsSectionInvites" data-filter-list="groupInviteList">
+            <div class="panelSubRow">
+              <div class="panelSub">Invites</div>
+              <div class="panelSubActions">
+                <span id="groupInvitesCount" class="sectionBadge">0</span>
+                <button id="btnRefreshGroupInvites" class="miniBtn secondary">Refresh</button>
+              </div>
+            </div>
+            <ul id="groupInviteList" class="list"></ul>
+          </section>
+
+          <section class="dockSection" id="groupsSectionList" data-filter-list="groupList">
+            <div class="panelSubRow">
+              <div class="panelSub">My groups</div>
+              <span id="groupListCount" class="sectionBadge">0</span>
+            </div>
+            <ul id="groupList" class="list"></ul>
+          </section>
+
+          <div id="groupsSearchEmpty" class="dockSearchEmpty hidden">No matching groups or invites in this panel.</div>
+        </section>
+      </div>
+
+      <div class="dockTaskbar" id="dockTaskbar" aria-label="Minimized windows">
+        <!-- Minimized window buttons render here -->
+      </div>
+
+      <!-- legacy containers kept so existing logic doesn't explode if referenced -->
+      <input id="roomToJoin" type="hidden" value="" />
+      <div id="pmWindowsContainer" class="hidden"></div>
+      <div id="notifications" class="hidden"></div>
+    </aside>
+
+    <!-- Floating windows + toasts layer -->
+    <div id="windowsLayer" class="windowsLayer"></div>
+    <div id="toastStack" class="toastStack" aria-live="polite" aria-atomic="true"></div>
+  </div>
+
+  <!-- Unlock modal (private key) -->
+  <div id="unlockModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="unlockTitle">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div id="unlockTitle" class="modalTitle">🔐 Unlock private messages</div>
+      </div>
+      <div class="modalBody">
+        <p class="muted">
+          Enter your password to unlock your encrypted private key for this session.
+        </p>
+
+        <label class="fieldLabel" for="unlockPassword">Password</label>
+        <input id="unlockPassword" class="modalInput" type="password" autocomplete="current-password" />
+
+        <label class="checkRow">
+          <input id="unlockRemember" type="checkbox" checked />
+          <span>Remember unlocked for this session (until tab closes)</span>
+        </label>
+
+        <div id="unlockError" class="errorText hidden"></div>
+      </div>
+      <div class="modalFoot">
+        <button id="btnUnlock" class="primaryBtn">Unlock</button>
+        <button id="btnUnlockSkip" class="ghostBtn" title="DMs won't decrypt until unlocked">Skip</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings modal -->
+  <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div id="settingsTitle" class="modalTitle">⚙ Settings</div>
+      </div>
+
+      <div class="modalBody">
+        <div class="settingsSection">
+          <div class="settingsSubTitle">Chat</div>
+
+          <label class="fieldLabel" for="setRoomFontSize">Room text size</label>
+          <div class="rangeRow">
+            <input id="setRoomFontSize" type="range" min="10" max="22" step="1" />
+            <span id="setRoomFontSizeVal" class="rangeVal">12px</span>
+          </div>
+
+          <div class="muted smallText">Applies to the embedded room chat on the left.</div>
+
+          <label class="checkRow">
+            <input id="setMissedToast" type="checkbox" />
+            <span>Show missed PM toast on login</span>
+          </label>
+
+          <label class="checkRow">
+            <input id="setSavePmLocal" type="checkbox" />
+            <span>Save private messages locally on this device</span>
+          </label>
+
+          <div class="btnRow">
+            <button id="btnDownloadPmHistory" class="miniBtn">Download PM history</button>
+            <button id="btnClearPmHistory" class="miniBtn danger">Clear PM history</button>
+          </div>
+
+          <div class="muted smallText">Local history is stored in your browser’s localStorage and can be exported as a file.</div>
+          <div class="settingsDivider"></div>
+
+          <div class="settingsSubTitle">Friends list</div>
+
+          <label class="checkRow">
+            <input id="setFriendStatusInline" type="checkbox" />
+            <span>Show friends’ custom status under their name</span>
+          </label>
+
+          <label class="checkRow">
+            <input id="setFriendStatusTooltip" type="checkbox" />
+            <span>Show friends’ custom status as a tooltip on hover</span>
+          </label>
+
+          <div class="muted smallText">Controls how custom status messages appear in the right-side buddy list.</div>
+
+
+        </div>
+
+        <div class="settingsSection">
+          <div class="settingsSubTitle">Private messages (E2EE)</div>
+          <div class="muted smallText">
+            To read encrypted private messages, you must unlock your private key for this browser session.
+          </div>
+          <div class="btnRow">
+            <button id="btnUnlockDM" class="miniBtn">Unlock DMs</button>
+            <button id="btnLockDM" class="miniBtn danger" title="Forget decrypted key for this tab">Lock DMs</button>
+          </div>
+          <div class="muted smallText">
+            Tip: If you opened this page in Incognito or didn’t enable auto-unlock on the login screen, incoming PMs will show “could not decrypt”.
+          </div>
+        </div>
+
+        <label class="checkRow">
+          <input id="setDarkMode" type="checkbox" />
+          <span>Dark mode (retro)</span>
+        </label>
+
+        <label class="fieldLabel" for="setAccentTheme">Theme color</label>
+        <select id="setAccentTheme" class="selectInput">
+          <option value="default">Classic</option>
+          <option value="blue">Blue</option>
+          <option value="purple">Purple</option>
+        </select>
+        <div class="muted smallText">Changes accents and gradients across the UI.</div>
+
+
+        <label class="checkRow">
+          <input id="setPopupNotif" type="checkbox" />
+          <span>Popup notifications (browser permission)</span>
+        </label>
+
+        <label class="checkRow">
+          <input id="setSoundNotif" type="checkbox" />
+          <span>Sound notifications</span>
+        </label>
+
+        <div class="muted smallText">
+          Note: browser popups require permission and may be blocked unless enabled via user interaction.
+        </div>
+      </div>
+
+      <div class="modalFoot">
+        <button id="btnSaveSettings" class="primaryBtn">Save</button>
+        <button id="btnCloseSettings" class="ghostBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Create Room Modal -->
+  <div id="createRoomModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div class="modalTitle">Create Custom Room</div>
+        <button id="btnCloseCreateRoom" class="iconBtn" title="Close">✖</button>
+      </div>
+      <div class="modalBody">
+        <div class="formRow">
+          <label class="formLabel">Room name</label>
+          <input id="crName" class="textInput" placeholder="e.g., My Hangout" maxlength="48" />
+        </div>
+
+        <div class="formRow twoCol">
+          <div>
+            <label class="formLabel">Category</label>
+            <select id="crCategory" class="selectInput"></select>
+          </div>
+          <div>
+            <label class="formLabel">Subcategory</label>
+            <select id="crSubcategory" class="selectInput"></select>
+          </div>
+        </div>
+
+        <div class="formRow">
+          <label class="formLabel">Visibility</label>
+          <div class="toggleRow">
+            <label class="radioLabel"><input type="radio" name="crVis" value="public" checked /> Public</label>
+            <label class="radioLabel"><input type="radio" name="crVis" value="private" /> Private (hidden unless invited)</label>
+          </div>
+        </div>
+
+        <div class="formRow twoCol">
+          <label class="checkLabel"><input id="cr18" type="checkbox" /> 18+ only</label>
+          <label class="checkLabel"><input id="crNSFW" type="checkbox" /> NSFW flag (forces 18+)</label>
+        </div>
+
+        <div class="muted smallText">Custom rooms auto-delete after being empty/inactive for a while.</div>
+      </div>
+      <div class="modalFoot">
+        <button id="btnCreateRoom" class="primaryBtn">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Invite Modal (private rooms) -->
+  <div id="inviteRoomModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div class="modalTitle">Invite to Private Room</div>
+        <button id="btnCloseInviteRoom" class="iconBtn" title="Close">✖</button>
+      </div>
+      <div class="modalBody">
+        <div class="muted smallText" id="irRoomLabel"></div>
+        <div class="formRow">
+          <label class="formLabel">Username to invite</label>
+          <input id="irUser" class="textInput" placeholder="username" />
+        </div>
+      </div>
+      <div class="modalFoot">
+        <button id="btnInviteRoom" class="primaryBtn">Invite</button>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

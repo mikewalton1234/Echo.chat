@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Echo Chat — Register</title>
+  <style>
+    body { display:flex; align-items:center; justify-content:center; height:100vh; font-family:sans-serif; }
+    form { display:flex; flex-direction:column; width:300px; }
+    input, button { padding:10px; margin:5px 0; font-size:1em; }
+  </style>
+</head>
+<body>
+  <form method="POST" action="/register">
+    <h2>Register</h2>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input name="username" placeholder="Username" required>
+    <input name="email" type="email" placeholder="Email" required>
+    <input name="phone" type="tel" placeholder="Phone (optional)">
+    <input name="recovery_pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="Recovery PIN (4 digits)" required>
+    <input name="recovery_pin_confirm" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="Confirm PIN" required>
+    <input name="age" type="number" placeholder="Age" required>
+    <input name="password" type="password" placeholder="Password" required>
+    <input name="confirm" type="password" placeholder="Confirm Password" required>
+    <button type="submit">Sign Up</button>
+    <p>Already have an account? <a href="/login">Log in</a></p>
+  </form>
+</body>
+</html>
